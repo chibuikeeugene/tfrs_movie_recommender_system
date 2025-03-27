@@ -5,3 +5,4 @@ pandas==2.2.3
 ipykernel==6.29.5
 sphinx==7.4.7
 matplotlib==3.9.2
+faiss-cpu==1.10.0

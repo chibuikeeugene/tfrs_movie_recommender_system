@@ -1,5 +1,6 @@
 /.DS_Store
-/tfrs_recommender
-/logs
-/weights
+/tf_recommender
+/research/logs
+/research/weights
 /__pycache__
+*.conf
