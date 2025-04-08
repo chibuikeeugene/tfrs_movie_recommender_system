@@ -4,3 +4,4 @@
 /research/weights
 /__pycache__
 *.conf
+/data_files
