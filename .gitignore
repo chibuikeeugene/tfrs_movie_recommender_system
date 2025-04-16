@@ -8,3 +8,4 @@
 *.csv
 /.ipynb_checkpoints
 *.txt
+*.pyc

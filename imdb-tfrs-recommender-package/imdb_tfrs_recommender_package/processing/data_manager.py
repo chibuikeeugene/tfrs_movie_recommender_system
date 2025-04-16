@@ -1,15 +1,26 @@
 from pathlib import Path
 import datetime
 from imdb_tfrs_recommender_package.config.core import DATASET, TRAINED_MODEL
+import numpy as np
 from loguru import logger
 import pandas as pd
 import tensorflow as tf
 import keras
 
 
-def load_and_preprocess_dataset(*, filename1:str, filename2:str) -> pd.DataFrame:
-    """ load the data from the mysql database or data warehouse, or just the csv files from a dataset directory. 
-    function block can be expanded by providing connection parameters"""
+def load_and_preprocess_dataset(*, filename1:str, filename2:str) -> tf.data.Dataset:
+    """ load the data from the mysql database or data warehouse, 
+    or just the csv files from a dataset directory. 
+    function block can be expanded by providing connection parameters.
+    Converts the datframe to a tensor dataset
+
+    args:
+    * filename1:str - ratings tabular data or csv file
+    * filename2:str = users tabular data or csv file
+
+    returns:
+    * a tensor data
+    """
 
     ratings_data = pd.read_csv(f'{DATASET}/{filename1}')
     users_data = pd.read_csv(f'{DATASET}/{filename2}')
@@ -51,26 +62,119 @@ def load_and_preprocess_dataset(*, filename1:str, filename2:str) -> pd.DataFrame
     df.reset_index(drop=True, inplace=True)
 
     # drop the review date column
+    logger.info('wrapping things up with the final dataframe by removing review dates and converting it to a tensor datatset...')
     df = df.drop('review date', axis=1)
 
-    return df
+    df_tensor = tf.data.Dataset.from_tensor_slices(df.to_dict('list'))
+    
 
-def train_test_val_split(df: pd.DataFrame) -> list[pd.DataFrame]:
-    """ split the dataframe into train , test and val data"""
+    return df_tensor
 
-    train = df[:int(0.7*len(df))]
-    test = df[int(0.7*len(df)):int(0.85*len(df))]
-    val = df[int(0.85*len(df)):]
-    logger.info(f"train data shape: {train.shape}")
-    logger.info(f'test data shape: {test.shape}')
-    logger.info(f'val data shape: {val.shape}')
-    return [train, test, val]
+def get_unique_feature_list_or_dict_for_vocab_building(dataset):
+    """ call this function to obtain unique features for vocab needed in training
 
-def convert_dataframe_to_tensors(data: list[pd.DataFrame]):
-    """" convert the train, test and val into a tensorflow dataset """
-    train = data[0]
-    test =  data[1]
-    val = data[2]
-    train_df = tf.data.Dataset.from_tensor_slices(train.to_dict('list'))
-    test_df = tf.data.Dataset.from_tensor_slices(test.to_dict('list'))
-    val_df = tf.data.Dataset.from_tensor_slices(val.to_dict('list'))
+    arg:
+    * dataset - a tensor data Dataset
+
+    return:
+    * a dictionary of feature items:
+
+    * Keys:
+    'movie_titles'
+    'genres'
+    'movietitle_genres'
+    'timestamp'
+    'user_ids'
+    
+    """
+    
+    df_tensor = dataset
+
+    # movie titles 
+    movie_titles =  df_tensor.map(lambda x: x['originalTitle'])
+    movie_titles_batched = movie_titles.batch(1000)
+    unique_movie_titles = np.unique(np.concatenate(list(movie_titles_batched)))
+
+    # select just the genre
+    genres =  df_tensor.map(lambda x: x['genres'])
+    genres_batched = genres.batch(1000)
+    unique_genres = np.unique(np.concatenate(list(genres_batched)))
+
+    movietitle_genres = df_tensor.map( lambda x: {
+            'originalTitle' : x['originalTitle'],
+            'genres': x['genres']
+        }
+    )
+
+    # select just the review date unix timestamp
+    timestamp =  df_tensor.map(lambda x: x['review date in unix'])
+    timestamp_batched=timestamp.batch(1000)
+    timestamp =  np.concatenate(list(timestamp_batched))
+    max_timestamp = timestamp.max()
+    min_timestamp = timestamp.min()
+
+    timestamp_bucket = np.linspace(
+        min_timestamp, max_timestamp, num=1000)
+
+    # selecting just the user id
+    user_ids = df_tensor.map(lambda x: x['userID'])
+    user_ids_batched = user_ids.batch(1000)
+    unique_user_ids = np.unique(np.concatenate(list(user_ids_batched)))
+
+    logger.info('returning unique feature list/dict items for movie titles, genres, timestamp, uniqe_ids...')
+
+    return {'movie_titles': unique_movie_titles,
+            'genres': unique_genres,
+            'movietitle_genres':movietitle_genres,
+            'timestamp':timestamp_bucket,
+            'user_ids':unique_user_ids 
+            }
+
+
+def train_test_val_split(df: tf.data.Dataset) -> list[tf.data.Dataset]:
+    """ split the dataframe into train , test and val tf dataset"""
+
+    df_tensor_len = len(df)
+
+    train_size = int(0.7 * df_tensor_len)
+    val_size = int(0.15 * df_tensor_len)
+    # test_size = df_tensor_len - train_size - val_size
+
+    train_ds = df.take(train_size)
+    val_ds = df.skip(train_size).take(val_size)
+    test_ds = df.skip(train_size + val_size)
+    logger.info(f'{len(df)} =  {len(train_ds)} + {len(test_ds)} + {len(val_ds)}')
+    return [train_ds, test_ds, val_ds]
+
+def extract_feature_from_each_dataset_split(dataset:list[tf.data.Dataset]):
+    """ extract features from each dataset split and create new json objects for training """
+    train = dataset[0]
+    test = dataset[1]
+    val = dataset[2]
+
+    train_ds = train.map(lambda x : {
+        'userID': x['userID'],
+        'originalTitle': x['originalTitle'],
+        'rating':x['rating'],
+        'genres': x['genres'],
+        'runtimeMinutes': x['runtimeMinutes'],
+        'review date in unix': x['review date in unix']
+    })
+    test_ds = test.map(lambda x : {
+        'userID': x['userID'],
+        'originalTitle': x['originalTitle'],
+        'rating':x['rating'],
+        'genres': x['genres'],
+        'runtimeMinutes': x['runtimeMinutes'],
+        'review date in unix': x['review date in unix']
+    })
+    val_ds = val.map(lambda x : {
+        'userID': x['userID'],
+        'originalTitle': x['originalTitle'],
+        'rating':x['rating'],
+        'genres': x['genres'],
+        'runtimeMinutes': x['runtimeMinutes'],
+        'review date in unix': x['review date in unix']
+    })
+
+    return train_ds, test_ds, val_ds
