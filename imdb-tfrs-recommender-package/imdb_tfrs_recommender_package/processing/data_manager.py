@@ -80,11 +80,12 @@ def get_unique_feature_list_or_dict_for_vocab_building(dataset):
     * a dictionary of feature items:
 
     * Keys:
-    'movie_titles'
-    'genres'
-    'movietitle_genres'
-    'timestamp'
-    'user_ids'
+    - 'movie_titles'
+    - 'genres'
+    - 'movietitle_genres'
+    - 'timestamp'
+    - 'timestamp_bucket'
+    - 'user_ids'
     
     """
     
@@ -126,8 +127,9 @@ def get_unique_feature_list_or_dict_for_vocab_building(dataset):
     return {'movie_titles': unique_movie_titles,
             'genres': unique_genres,
             'movietitle_genres':movietitle_genres,
-            'timestamp':timestamp_bucket,
-            'user_ids':unique_user_ids 
+            'timestamp':timestamp,
+            'timestamp_bucket': timestamp_bucket,
+            'user_ids':unique_user_ids,
             }
 
 
@@ -178,3 +180,9 @@ def extract_feature_from_each_dataset_split(dataset:list[tf.data.Dataset]):
     })
 
     return train_ds, test_ds, val_ds
+
+
+
+# def remove_old_model(model):
+#     """use this method to remove a retrieval model trained on a new data """
+#     pass

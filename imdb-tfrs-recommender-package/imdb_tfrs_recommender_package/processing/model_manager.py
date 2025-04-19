@@ -19,15 +19,18 @@ class UserModel(tf.keras.Model):
         super().__init__()
         
         self.use_timestamp =  use_timestamp
+        self.unique_user_ids =  unique_user_ids
+        self.timestamp =  timestamp
+        self.timestamp_bucket = timestamp_bucket
         
         # converting user ids to integers and then to embeddings using keras preprocessing layers
         self.user_embedding = tf.keras.Sequential(
             [
             tf.keras.layers.StringLookup( # convert the string user ids to integer indices
-                vocabulary = unique_user_ids, mask_token=None
+                vocabulary = self.unique_user_ids, mask_token=None
             ),
             tf.keras.layers.Embedding( # convert the indices to vector embeddings
-                len(unique_user_ids) + 1, 32
+                len(self.unique_user_ids) + 1, 32
             )
             ]
         )
@@ -39,17 +42,17 @@ class UserModel(tf.keras.Model):
         if self.use_timestamp:
             self.timestamp_embeddings = tf.keras.Sequential([
                 tf.keras.layers.Discretization(
-                    timestamp_bucket.tolist()
+                    self.timestamp_bucket.tolist()
                 ),
                 tf.keras.layers.Embedding(
-                    len(timestamp_bucket) + 1, 32
+                    len(self.timestamp_bucket) + 1, 32
                 )
             ])
             # Secondly normalize timestamp
             self.normalized_timestamp =  tf.keras.layers.Normalization(
                 axis=None
             )
-            self.normalized_timestamp.adapt(timestamp)
+            self.normalized_timestamp.adapt(self.timestamp)
 
     def call(self, inputs):
         if not self.use_timestamp:
@@ -115,15 +118,18 @@ class MovieModel(tf.keras.Model):
 
     def __init__(self, unique_movie_titles, unique_genres):
         super().__init__()
+        self.unique_movie_titles =  unique_movie_titles
+        self.unique_genres =  unique_genres
+
         max_token = 10000 # maximum number of tokens to be generated in the vocabulary
 
         self.movie_embeddings = tf.keras.Sequential(
             [
             tf.keras.layers.StringLookup(
-                vocabulary = unique_movie_titles, mask_token =None
+                vocabulary = self.unique_movie_titles, mask_token =None
             ),
             tf.keras.layers.Embedding(
-                len(unique_movie_titles) + 1, 32
+                len(self.unique_movie_titles) + 1, 32
             )
             ]
         )
@@ -131,7 +137,7 @@ class MovieModel(tf.keras.Model):
         self.genre_embeddings = tf.keras.Sequential([
             tf.keras.layers.TextVectorization(
                 max_tokens=max_token,
-                vocabulary= unique_genres
+                vocabulary= self.unique_genres
             ),
             tf.keras.layers.Embedding(
                 max_token, 32, mask_zero=True
