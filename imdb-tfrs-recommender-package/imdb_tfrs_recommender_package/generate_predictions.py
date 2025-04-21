@@ -1,4 +1,6 @@
+from typing import Dict,Any,Union
 import faiss
+from imdb_tfrs_recommender_package.processing import data_manager as dm
 
 # FAISS Retrival class
 class FaissRetrievalIndex():
@@ -71,5 +73,40 @@ class FaissRetrievalIndex():
         return distances, recommended_movie_ids
     
 
-def predict():
-    pass
+def make_prediction(*, data: Union[Dict[str, Any], list[Dict[str, Any]]], embed_dim, model):
+    """call this method to load recommendations for a user or group of users"""
+
+    # create an instance of the Faiss retrieval index
+    faiss_retrieval_index = FaissRetrievalIndex(embedding_dimension=embed_dim, model=model)
+
+
+    # loading and handling our user data
+    user_df_tensor = dm.load_and_preprocess_dataset_prod(data=data)
+
+
+    user_df_tensor_map =  user_df_tensor.map(lambda x:
+        {
+        'movieID': x['movieID'],
+        'originalTitle': x['originalTitle'],
+        'genres': x['genres']
+        }
+    )
+
+    for movie in user_df_tensor_map.batch().as_numpy_iterator():
+        movie_ids = [mov for mov in movie['movieID']]  # return the movie ids for the batch
+        faiss_retrieval_index.index_movie_in_faiss(movie, movie_ids)
+
+    # searching for the top k most similar movies for a user
+    user = 
+    distances, recommended_movie_ids = faiss_retrieval_index.search_top_k(user, k=50)
+
+    # removing duplicates from result
+    final_movie_recommended_ids = list(dict.fromkeys(recommended_movie_ids[0]))
+
+    # converting byte strings to string
+    recommended_movie_str =[val.decode(encoding='utf-8') for val in final_movie_recommended_ids]
+
+    recommended_movies = [df[df['movieID']== id]['originalTitle'].values[0] for id in recommended_movie_str]
+
+    # Print the recommended movies for the user
+    print(f"Recommended Movies: {recommended_movies}")

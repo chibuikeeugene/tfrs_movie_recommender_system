@@ -1,13 +1,11 @@
 import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-
+from typing import Dict,Any,Union
 import tensorflow as tf
 from imdb_tfrs_recommender_package.config import core as c
 from imdb_tfrs_recommender_package.processing import data_manager as dm
 
 from loguru import logger
-
-
 
 
 
@@ -38,8 +36,8 @@ def data_processing_pipeline():
 
     # for performance and memory optimization
     logger.info('performing caching, batching and prefetching operation for train, test and val dataset')
-    cached_train = train_ds.cache('imdb-tfrs-recommender-package/imdb_tfrs_recommender_package/cache_train/').batch(1000).prefetch(tf.data.AUTOTUNE)
-    cached_test = test_ds.cache('imdb-tfrs-recommender-package/imdb_tfrs_recommender_package/cache_test/').batch(1000).prefetch(tf.data.AUTOTUNE)
-    cached_val = val_ds.cache('imdb-tfrs-recommender-package/imdb_tfrs_recommender_package/cache_val/').batch(1000).prefetch(tf.data.AUTOTUNE)
+    cached_train = train_ds.batch(1000).cache().prefetch(tf.data.AUTOTUNE)
+    cached_test = test_ds.batch(1000).cache().prefetch(tf.data.AUTOTUNE)
+    cached_val = val_ds.batch(1000).cache().prefetch(tf.data.AUTOTUNE)
 
     return cached_train, cached_val, features

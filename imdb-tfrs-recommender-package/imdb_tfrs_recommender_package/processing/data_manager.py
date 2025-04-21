@@ -1,5 +1,6 @@
 from pathlib import Path
 import datetime
+from typing import Dict, Any
 from imdb_tfrs_recommender_package.config.core import DATASET, TRAINED_MODEL
 import numpy as np
 from loguru import logger
@@ -69,6 +70,33 @@ def load_and_preprocess_dataset(*, filename1:str, filename2:str) -> tf.data.Data
     
 
     return df_tensor
+
+def load_and_preprocess_dataset_prod(*, data:Dict[str, Any]) -> tf.data.Dataset:
+    """ data processing pipeline for data retrieved via rest API call for real-time inferencing needs 
+     
+     Args:
+     * data: json datatype - a user record comprising (userID, movieID, rating, review date,	originalTitle,	genres,	runtimeMinutes)
+    
+     Return:
+     * dataset: tf.data.Dataset
+    """
+
+    # load the json data and convert it to dataframe
+    user_df = pd.DataFrame(data=data)
+
+    # convert the review date to datetime
+    user_df['review date'] = pd.to_datetime(user_df['review date'])
+
+    # convert the datetime to just unix timestamp
+    user_df['review date in unix'] = [datetime.datetime.timestamp(time) for time in user_df['review date']]
+
+    user_df = user_df.drop('review date', axis=1)
+    
+    # convert dataframe to a tensor dataset
+    user_df_tensor = tf.data.Dataset.from_tensor_slices(user_df.to_dict('list'))
+
+    return user_df_tensor
+
 
 def get_unique_feature_list_or_dict_for_vocab_building(dataset):
     """ call this function to obtain unique features for vocab needed in training
